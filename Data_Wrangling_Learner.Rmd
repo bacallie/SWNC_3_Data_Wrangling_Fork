@@ -1,6 +1,6 @@
 ---
 title: "Data Wrangling Main"
-author: "LEARNER"
+author: "Bryn Callie"
 date: '2022-12-23'
 output: html_document
 ---
@@ -11,6 +11,7 @@ library(csv)
 library(janitor)
 library(knitr)
 library(tidyverse)
+library(dplyr)
 
 # This is auto-populated in RMD creation and used for formatting purposes.
 opts_chunk$set(echo = TRUE)
@@ -92,7 +93,7 @@ We will be using a CSV file for this training, found here: [Groundhog data](http
 **To do** Use the read.csv() function to read in the csv from the data folder. Use <- to assign it to the variable name groundhog_raw.
 ```{r}
 # Import the dataset
-groundhog_raw <- 
+groundhog_raw <- read.csv("data/Groundhog_Data.csv")
 ```
 ______________________________________________________________________________
 ## 3. View the file
@@ -127,7 +128,7 @@ Similarly, tail() can be used to see the end of the imported data set.
 **To do** Use the tail() function to view the last 3 rows of groundhog_raw.
 ```{r}
 # View the last three rows of groundhog_raw
-
+tail(groundhog_raw, 3)
 ```
 
 
@@ -136,7 +137,7 @@ We can also look at summary statistics to gain more understanding of the data se
 **To do** Use the summary() function on groundhog_raw.
 ```{r}
 # View the summary statistics of groundhog_raw
-
+summary(groundhog_raw)
 ```
 
 
@@ -168,11 +169,15 @@ To answer, we'll break the question down into steps.
 What we need to do: 
 
 a. Tidy the column names
-
 b. Clean up missing data
-
 c. Filter data: 
 *Did Punxsutawney Phil predict an early spring*  filter: Punxsutawney Phil = No Shadow
+groundhog_subset <- groundhog_dat %>%
+  dplyr::filter(record == "No Shadow" 
+  & feb_avg_temp_penn > 32)
+  
+dplyr::mutate(groundhog_subset
+
 
 *correctly in Pennsylvania* filter: February-Average-Temperature-Pennsylvania>32
 
@@ -188,7 +193,7 @@ We sometimes import column names which are difficult to work with or do not adeq
 
 **To Do** Print out the current column names of groundhog_raw using the colnames() function.
 ```{r}
-
+colnames(groundhog_raw)
 ```
 
 
@@ -227,8 +232,8 @@ Lets start working on our data.
 **To do** Use *groundhog_edited <-* so the output is saved as a new object. Pipeline from groundhog_raw. Use the rename function to rename "February.Average.Temperature..Midwest." to Feb_Mid. 
 *hint* Remember the help function of R studio will list required inputs and the format they should be in.
 ```{r}
-# New Variable <- Old Variable pipeline
-
+groundhog_edited <- groundhog_raw %>%
+  rename("feb_mid" = "February.Average.Temperature..Midwest.")
   #rename(new name = old name)
 
 ```
@@ -249,12 +254,15 @@ This is an example of a batch rename based on pattern matching. While it looks c
 # Dataframe pipeline
 groundhog_edited <- groundhog_edited %>%
   # Call rename_with. Use the function (copied from online) to substitute Feb_ for the longer string.
-  rename_with(function(x){gsub("February.Average.Temperature..","Feb_",x)})
+  rename_with(function(x){gsub("February.Average.Temperature..","feb_",x)})
 ```
 
 **To do** Copy/paste the above code, alter the text to complete the same process for March.
 ```{r}
 # March renaming function
+groundhog_edited <- groundhog_edited %>%
+  # Call rename_with. Use the function (copied from online) to substitute Feb_ for the longer string.
+  rename_with(function(x){gsub("March.Average.Temperature..","march_",x)})
 
 ```
 
@@ -274,6 +282,45 @@ clean_names() from the janitor library will transform any characters that are no
 **To do** Begin with *groundhog_edited <-* to replace our current working data set. Create a pipeline which calls the function clean_names() on groundhog_edited.
 ```{r}
 # Janitor does the work for us.
+
+# putting in NA values where there are empty values
+groundhog_raw[groundhog_raw == ""] <- NA
+
+# cleaning the data: renaming columns and removing NAs
+groundhog_edited <- groundhog_raw %>%
+    rename_with(function(x){gsub("March.Average.Temperature..","march_",x)}) %>%
+    rename_with(function(x){gsub("February.Average.Temperature..","feb_",x)}) %>%
+    clean_names() %>%
+    drop_na()
+
+# filtering the data to only show when phil didn't see his shadow and penn was > 32 in feb
+groundhog_filtered <- groundhog_edited %>%
+  filter(punxsutawney_phil == "No Shadow") %>%
+  filter(feb_pennsylvania > 32)
+
+# converting the year column to date class
+groundhog_filtered <- groundhog_filtered %>%
+  transform(year = ISOdate(year, 1, 1))
+
+# filtering the year column for dates between 1900 and 2001
+  groundhog_filtered <- groundhog_filtered %>%
+     filter(year >= "1900-01-01" & year < "2001-01-01")
+
+# changing the column layout
+  groundhog_layout <- groundhog_filtered %>%
+    select(year, punxsutawney_phil, feb_pennsylvania)
+
+# reordering the columns
+  groundhog_layout <- groundhog_layout %>% 
+  # columns will move to the front in the order written
+  relocate(punxsutawney_phil,feb_pennsylvania)
+
+# changing it so the year column is in front of the phil column
+  groundhog_layout <- groundhog_layout %>% 
+  # columns will move to the front in the order written
+  relocate(punxsutawney_phil, .after =year) %>%
+    relocate(feb_pennsylvania, .after = punxsutawney_phil)
+
 
 ```
 ______________________________________________________________________________
@@ -296,8 +343,7 @@ The first thing we will do is remove the rows which contain NAs. Luckily, there'
 **To do** From groundhog_edited, pipeline to the tidyverse function drop_na().
 ```{r}
 # Notice that the output has 9 fewer rows (123 obs.)
-groundhog_edited %>%
-  drop_na()
+
 ```
 
 **To do** View groundhog_edited and sort by the column Punxsutawney.Phil.  Notice there is an empty string for year 1901-2000. This was not dropped in the previous code block due to the character (not numeric) data type. 
@@ -312,6 +358,9 @@ na_if() is a function which will replace a specified character string with a nul
   
   # remove all NAs from dataframe
   
+groundhog_edited <- groundhog_edited %>%
+  na_if("") %>%
+  drop_na()
 
 # groundhog_edited should now contain 122 rows.
 ```
